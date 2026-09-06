@@ -65,8 +65,22 @@ feature_extractor = None
 knn_model = None
 models_loaded_successfully = False
 
+class DummyBase:
+    def __init__(self, *args, **kwargs): pass
+    def __call__(self, *args, **kwargs): return self
+    def __getattr__(self, name):
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
+        return self
+    def append(self, *args, **kwargs): pass
+    def extend(self, *args, **kwargs): pass
+    def __getitem__(self, item): return self
+    def __setitem__(self, key, value): pass
+    def __iter__(self): return iter([])
+    def __len__(self): return 0
+
 def _setup_unpickler_compatibility():
-    """Mock missing modules and compatibility shims for loading fastai exported .pkl models."""
+    """Mock missing modules and compatibility shims for loading fastai exported .pkl models without fastai dependency."""
     sys.modules["pathlib._local"] = pathlib
     pathlib._local = pathlib
 
@@ -77,33 +91,43 @@ def _setup_unpickler_compatibility():
 
     make_mock("fasttransform")
     make_mock("fasttransform.transform")
-
-    class DummyPipeline:
-        pass
-
-    class DummyTransform:
-        pass
-
-    sys.modules["fasttransform.transform"].Pipeline = DummyPipeline
-    sys.modules["fasttransform.transform"].Transform = DummyTransform
+    sys.modules["fasttransform.transform"].Pipeline = DummyBase
+    sys.modules["fasttransform.transform"].Transform = DummyBase
 
     plum_mods = ["plum", "plum._function", "plum._resolver", "plum._method", "plum._signature", "plum._util"]
     for pm in plum_mods:
         make_mock(pm)
         m = sys.modules[pm]
-        setattr(m, "Function", type("Function", (), {}))
-        setattr(m, "Resolver", type("Resolver", (), {}))
-        setattr(m, "MethodList", type("MethodList", (list,), {}))
-        setattr(m, "Method", type("Method", (), {}))
-        setattr(m, "Signature", type("Signature", (), {}))
-        setattr(m, "Missing", type("Missing", (), {}))
+        setattr(m, "Function", DummyBase)
+        setattr(m, "Resolver", DummyBase)
+        setattr(m, "MethodList", DummyBase)
+        setattr(m, "Method", DummyBase)
+        setattr(m, "Signature", DummyBase)
+        setattr(m, "Missing", DummyBase)
 
 class SafePyUnpickler(pickle._Unpickler):
-    """Custom unpickler to handle Python version differences (e.g. CodeType arguments)."""
+    """Custom unpickler to handle Python version differences & missing fastai dependencies."""
     def __init__(self, file, *args, **kwargs):
         kwargs.pop("map_location", None)
         kwargs.pop("encoding", None)
         super().__init__(file)
+
+    def find_class(self, module, name):
+        if module.startswith(("fastai", "fastcore", "fasttransform", "plum", "fastkaggle")):
+            return type(name, (DummyBase,), {})
+        try:
+            return super().find_class(module, name)
+        except Exception:
+            return type(name, (DummyBase,), {})
+
+    def load_newobj(self):
+        args = self.stack.pop()
+        cls = self.stack.pop()
+        try:
+            obj = cls.__new__(cls, *args)
+        except Exception:
+            obj = cls.__new__(cls)
+        self.append(obj)
 
     def load_reduce(self):
         stack = self.stack
@@ -117,6 +141,7 @@ class SafePyUnpickler(pickle._Unpickler):
 SafePyUnpickler.dispatch = pickle._Unpickler.dispatch.copy()
 SafePyUnpickler.dispatch[ord("R")] = SafePyUnpickler.load_reduce
 SafePyUnpickler.dispatch[ord("o")] = SafePyUnpickler.load_reduce
+SafePyUnpickler.dispatch[ord("\x81")] = SafePyUnpickler.load_newobj
 
 class CustomPickleModule:
     Unpickler = SafePyUnpickler
