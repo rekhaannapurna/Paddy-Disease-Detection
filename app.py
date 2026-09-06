@@ -70,8 +70,6 @@ def _setup_unpickler_compatibility():
     sys.modules["pathlib._local"] = pathlib
     pathlib._local = pathlib
 
-    import fastcore.transform
-
     def make_mock(name):
         if name not in sys.modules:
             m = types.ModuleType(name)
@@ -79,8 +77,15 @@ def _setup_unpickler_compatibility():
 
     make_mock("fasttransform")
     make_mock("fasttransform.transform")
-    sys.modules["fasttransform.transform"].Pipeline = fastcore.transform.Pipeline
-    sys.modules["fasttransform.transform"].Transform = fastcore.transform.Transform
+
+    class DummyPipeline:
+        pass
+
+    class DummyTransform:
+        pass
+
+    sys.modules["fasttransform.transform"].Pipeline = DummyPipeline
+    sys.modules["fasttransform.transform"].Transform = DummyTransform
 
     plum_mods = ["plum", "plum._function", "plum._resolver", "plum._method", "plum._signature", "plum._util"]
     for pm in plum_mods:
