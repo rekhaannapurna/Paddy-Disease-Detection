@@ -55,7 +55,7 @@ const sendImageForPrediction = async (file) => {
     formData.append("image", file);
 
     try {
-        const response = await fetch("https://YOUR-RENDER-BACKEND.onrender.com/predict", {
+        const response = await fetch("https://YOUR-RAILWAY-BACKEND.up.railway.app/predict", {
             method: "POST",
             body: formData
         });
@@ -128,6 +128,19 @@ const sendImageForPrediction = async (file) => {
 
 ---
 
+## 🚂 Railway Deployment Instructions (Recommended)
+
+Railway is extremely fast, reliable, and handles PyTorch/ML deployments with zero friction.
+
+1. Go to [railway.app](https://railway.app) and sign in.
+2. Click **+ New Project** $\rightarrow$ Select **Deploy from GitHub repo**.
+3. Choose the repository: `rekhaannapurna/Paddy-Disease-Detection`.
+4. Railway will automatically detect `railway.json`, `Procfile`, and `requirements.txt` and start the deployment.
+5. In your Railway service settings under **Networking**, click **Generate Domain** to get your public backend URL (e.g. `https://paddy-disease-detection.up.railway.app`).
+6. (Optional) In **Variables**, add `FRONTEND_URL` with your friend's frontend domain (default is `*`).
+
+---
+
 ## 💻 Local Setup & Development
 
 ### 1. Install Dependencies
@@ -142,16 +155,5 @@ python3 app.py
 
 ### 3. Run API Server (Gunicorn Production Mode)
 ```bash
-gunicorn app:app
+gunicorn --bind 0.0.0.0:5000 app:app
 ```
-
----
-
-## ☁️ Render Deployment Configuration
-
-- **Environment**: Python 3.10
-- **Build Command**: `pip install -r requirements.txt`
-- **Start Command**: `gunicorn app:app`
-- **Environment Variables**:
-  - `FRONTEND_URL`: Allowed CORS origin (e.g. `https://your-frontend.vercel.app` or `*`)
-  - `PORT`: Automatically set by Render (default `5000`)
